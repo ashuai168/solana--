@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Crypto Address Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        .gradient-border {
+            position: relative;
+            background: linear-gradient(white, white) padding-box,
+                        linear-gradient(135deg, #667eea 0%, #764ba2 100%) border-box;
+            border: 2px solid transparent;
+        }
+        .chain-button {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .chain-button:hover {
+            transform: translateY(-2px);
+        }
+        .chain-button.selected {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <!-- Main Content -->
+    <div class="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+        <!-- Hero Section -->
+        <div class="text-center mb-12">
+            <h2 class="text-4xl font-bold text-gray-900 mb-4">
+                创建您的 Solana 靓号地址
+            </h2>
+            <p class="text-base text-gray-600 max-w-2xl mx-auto">
+                自定义 Solana 钱包地址的起始或结束。
+            </p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+            <!-- Prefix & Suffix Inputs -->
+            <div class="mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">前缀</label>
+                        <input type="text" 
+                               id="prefix-input"
+                               placeholder="示例: MOON 或 moon (大小写严格)" 
+                               class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg"
+                               maxlength="8">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">后缀</label>
+                        <input type="text" 
+                               id="suffix-input"
+                               placeholder="示例: SOL 或 sol (大小写严格)" 
+                               class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg"
+                               maxlength="8">
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Generate Button -->
+            <button id="generate-btn" 
+                    onclick="generateAddresses()"
+                    class="w-full py-4 px-6 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold rounded-xl hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                生成自定义地址
+            </button>
+
+            <!-- Progress Section -->
+            <div id="progress-section" class="hidden mt-8">
+                <div class="bg-gray-50 rounded-xl p-6">
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-700 font-semibold">正在搜索自定义地址...</span>
+                            <span id="found-count" class="text-sm font-medium text-indigo-600">0 / 0 found</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-center space-x-3">
+                        <div class="spinner"></div>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-gray-900">
+                                <span id="attempts-counter" class="font-mono">0</span>
+                            </div>
+                            <div class="text-sm text-gray-600">wallets searched</div>
+                        </div>
+                    </div>
+                    <div id="current-search" class="text-center text-sm text-gray-500 mt-3">
+                        Looking for address #<span id="current-index">1</span>...
+                    </div>
+                    <div id="live-addresses" class="mt-4 space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="results-section" class="hidden mt-8">
+                <!-- Critical Security Warning -->
+                <div class="bg-red-50 border-2 border-red-300 rounded-xl p-6 mb-6">
+                    <div class="flex items-start space-x-3">
+                        <div class="flex-shrink-0">
+                            <svg class="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold text-red-900 mb-2">⚠️ 重要：立即保存您的密钥！</h3>
+                            <p class="text-red-800 font-semibold mb-3">
+                                这些密钥不会存储在任何地方——我们的服务器、您的浏览器或任何数据库中 
+                                它们现在只存在于您的屏幕上！
+                            </p>
+                            <div class="bg-white border border-red-200 rounded-lg p-4">
+                                <p class="text-red-700 font-medium">
+                                    📋 立即复制并保存您的私钥！<br>
+                                    🔄 一旦您离开或刷新此页面，它们将永远消失！<br>
+                                    🔒 我们对这些密钥没有任何访问权限 - 只有您可以看到它们！
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">生成的地址</h3>
+                <div id="results-container" class="space-y-3"></div>
+                <button onclick="downloadResults()" 
+                        class="mt-6 w-full py-3 px-4 border-2 border-indigo-500 text-indigo-600 font-medium rounded-xl hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    下载所有密钥
+                </button>
+            </div>
+        </div>
+
+        <!-- Info Section -->
+        <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white rounded-xl p-6 shadow-lg">
+                <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                </div>
+                <h3 class="font-semibold text-gray-900 mb-2">完全可定制</h3>
+                <p class="text-sm text-gray-600">选择任意起始或结束地址</p>
+            </div>
+            <div class="bg-white rounded-xl p-6 shadow-lg">
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                </div>
+                <h3 class="font-semibold text-gray-900 mb-2">100% 私密</h3>
+                <p class="text-sm text-gray-600">零存储 - 私钥仅存在于屏幕上</p>
+            </div>
+            <div class="bg-white rounded-xl p-6 shadow-lg">
+                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                    </svg>
+                </div>
+                <h3 class="font-semibold text-gray-900 mb-2">Solana链 </h3>
+                <p class="text-sm text-gray-600">专为 Solana 地址构建</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态：链选择 + 结果集
+        let selectedChain = 'solana';
+        function selectChain(chain) { selectedChain = (chain || 'solana'); }
+        // 仅保留前缀/后缀输入与一键生成
+
+        let generatedResults = [];
+
+        function validatePattern() {
+            const prefix = (document.getElementById('prefix-input').value || '').trim();
+            const suffix = (document.getElementById('suffix-input').value || '').trim();
+
+            if (!prefix && !suffix) {
+                alert('请至少填写前缀或后缀');
+                return false;
+            }
+
+            if (prefix.length > 8 || suffix.length > 8) {
+                alert('字符太长。建议前缀/后缀最多 8 个字符，以便生成更合理的时间。');
+                return false;
+            }
+
+            return true;
+        }
+
+        async function generateAddresses() {
+            if (!validatePattern()) {
+                return;
+            }
+            
+            const prefix = document.getElementById('prefix-input').value || '';
+            const suffix = document.getElementById('suffix-input').value || '';
+            const both = (prefix && suffix);
+            const count = 1; // 单一目标（满足所选条件）
+            
+            // Reset and show progress
+            generatedResults = [];
+            document.getElementById('progress-section').classList.remove('hidden');
+            document.getElementById('results-section').classList.add('hidden');
+            document.getElementById('generate-btn').disabled = true;
+            document.getElementById('live-addresses').innerHTML = '';
+            document.getElementById('attempts-counter').textContent = '0';
+            document.getElementById('found-count').textContent = `0 / 1 found`;
+            document.getElementById('progress-bar').style.width = '0%';
+            
+            
+            // Use EventSource for real-time updates
+            const baseUrl = window.location.origin === 'file://' ? 'http://localhost:8080' : '';
+            // 校验已在 validatePattern 完成
+
+            const params = new URLSearchParams({ chain: 'solana' });
+            let eventSource;
+            if (both) {
+                params.set('pattern', prefix);
+                params.set('suffix', suffix);
+                params.set('position', 'both');
+                params.set('count', '1');
+                eventSource = new EventSource(`${baseUrl}/generate?` + params.toString());
+            } else if (prefix) {
+                params.set('pattern', prefix);
+                params.set('position', 'prefix');
+                eventSource = new EventSource(`${baseUrl}/generate?` + params.toString());
+            } else {
+                params.set('pattern', suffix);
+                params.set('position', 'suffix');
+                eventSource = new EventSource(`${baseUrl}/generate?` + params.toString());
+            }
+            
+            let attemptsAnimation;
+            let currentAttempts = 0;
+            let targetAttempts = 0;
+            
+            // Animate the attempts counter
+            function animateCounter() {
+                if (currentAttempts < targetAttempts) {
+                    const increment = Math.ceil((targetAttempts - currentAttempts) / 10);
+                    currentAttempts = Math.min(currentAttempts + increment, targetAttempts);
+                    document.getElementById('attempts-counter').textContent = currentAttempts.toLocaleString();
+                    attemptsAnimation = requestAnimationFrame(animateCounter);
+                } else {
+                    attemptsAnimation = null; // Reset so it can restart if needed
+                }
+            }
+            
+            eventSource.onmessage = function(event) {
+                console.log('Received event:', event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Parsed data:', data);
+                    
+                    if (data.type === 'connected') {
+                        console.log('Connected to generator:', data.message);
+                    } else if (data.type === 'progress') {
+                    console.log('Progress update:', data.attempts);
+                    targetAttempts = data.attempts;
+                    if (!attemptsAnimation) {
+                        animateCounter();
+                    }
+                    document.getElementById('current-index').textContent = data.searching_for;
+                    
+                } else if (data.type === 'found') {
+                    // 验证匹配正确性（严格大小写）
+                    const addr = data.address || '';
+                    const pos = data.position || '';
+                    if (prefix && !addr.startsWith(prefix)) return;
+                    if (suffix && !addr.endsWith(suffix)) return;
+                    // Add to results
+                    generatedResults.push({
+                        address: data.address,
+                        private_key: data.private_key,
+                        position: data.position
+                    });
+                    
+                    // 单一目标
+                    const progress = (generatedResults.length / 1) * 100;
+                    document.getElementById('progress-bar').style.width = `${progress}%`;
+                    document.getElementById('found-count').textContent = `${generatedResults.length} / 1 found`;
+                    
+                    // Add to live display
+                    const liveDiv = document.createElement('div');
+                    liveDiv.className = 'bg-green-50 border border-green-200 rounded p-2 animate-pulse';
+                    liveDiv.innerHTML = `
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-sm font-medium text-green-800">Found ${data.position == 'prefix' ? 'starting' : 'ending'}!</span>
+                            <span class="text-xs text-green-600 font-mono truncate">${data.address.substring(0, 20)}...</span>
+                        </div>
+                    `;
+                    document.getElementById('live-addresses').appendChild(liveDiv);
+                    
+                    // Keep counter animation going if we're still searching
+                    if (generatedResults.length < 1 && !attemptsAnimation) {
+                        animateCounter();
+                    }
+                    
+                } else if (data.type === 'complete') {
+                    eventSource.close();
+                    cancelAnimationFrame(attemptsAnimation);
+                    
+                    // Final update
+                    currentAttempts = data.total_attempts;
+                    document.getElementById('attempts-counter').textContent = currentAttempts.toLocaleString();
+                    
+                    // Show results
+                    setTimeout(() => {
+                        displayResults(generatedResults);
+                        document.getElementById('progress-section').classList.add('hidden');
+                        document.getElementById('results-section').classList.remove('hidden');
+                        document.getElementById('generate-btn').disabled = false;
+                    }, 500);
+                } else if (data.type === 'error') {
+                    console.error('Generator error:', data.message);
+                    alert('Error generating addresses: ' + data.message);
+                }
+                } catch (error) {
+                    console.error('Error parsing message:', error, event.data);
+                }
+            };
+            
+            eventSource.onerror = function(error) {
+                console.error('EventSource error:', error);
+                eventSource.close();
+                cancelAnimationFrame(attemptsAnimation);
+                
+                // Reset UI
+                document.getElementById('progress-section').classList.add('hidden');
+                document.getElementById('generate-btn').disabled = false;
+                alert('Connection error. Please try again.');
+            };
+        }
+
+        // All addresses are generated using real cryptographic processes
+        // No mock or demo data is ever used
+
+        function displayResults(addresses) {
+            const container = document.getElementById('results-container');
+            container.innerHTML = '';
+            
+            addresses.forEach((addr, index) => {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-50 rounded-lg p-4';
+                div.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="text-sm font-medium text-gray-500">Address #${index + 1}</div>
+                            <div class="mt-1 font-mono text-sm text-gray-900 break-all">${addr.address}</div>
+                            <details class="mt-2">
+                                <summary class="cursor-pointer text-sm font-semibold text-red-600 hover:text-red-700">
+                                    🔐 点击显示私钥（立即保存！）
+                                </summary>
+                                <div class="mt-2 p-3 bg-red-50 rounded-lg border-2 border-red-300">
+                                    <div class="text-sm font-bold text-red-700 mb-2">
+                                        ⚠️ 警告: 此私钥将永远不会再次显示！
+                                    </div>
+                                    <div class="bg-white p-2 rounded border border-red-200">
+                                        <div class="font-mono text-xs text-gray-900 break-all select-all">${addr.private_key}</div>
+                                    </div>
+                                    <button onclick="navigator.clipboard.writeText('${addr.private_key}').then(() => showToast('Private key copied! Save it securely NOW!'))" 
+                                            class="mt-2 w-full py-2 px-3 bg-red-600 text-white text-sm font-medium rounded hover:bg-red-700">
+                                        Copy Private Key
+                                    </button>
+                                </div>
+                            </details>
+                        </div>
+                        <button onclick="copyAddress('${addr.address}')" class="ml-4 p-2 text-gray-400 hover:text-gray-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function showToast(message, isWarning = false) {
+            const toast = document.createElement('div');
+            const bgColor = isWarning ? 'bg-red-600' : 'bg-green-500';
+            toast.className = `fixed bottom-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg font-medium z-50`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function copyAddress(address) {
+            navigator.clipboard.writeText(address).then(() => {
+                showToast('Address copied!');
+            });
+        }
+
+        function downloadResults() {
+            const data = {
+                chain: selectedChain,
+                prefix: document.getElementById('prefix-input').value || '',
+                suffix: document.getElementById('suffix-input').value || '',
+                addresses: generatedResults,
+                generated: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${selectedChain}_addresses_${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Initialize with Solana selected
+        selectChain('solana');
+        
+        // Warn user before leaving if they have generated addresses
+        window.addEventListener('beforeunload', function(e) {
+            if (generatedResults.length > 0) {
+                const message = '警告：如果您离开此页面，您生成的私钥将永远丢失！';
+                e.preventDefault();
+                e.returnValue = message;
+                return message;
+            }
+        });
+    </script>
+</body>
+</html>
